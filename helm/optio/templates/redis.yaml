@@ -64,8 +64,8 @@ spec:
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-redis-auth
-                  key: REDIS_PASSWORD
+                  name: {{ default (printf "%s-redis-auth" .Release.Name) .Values.redis.auth.existingSecret }}
+                  key: {{ default "REDIS_PASSWORD" .Values.redis.auth.existingSecretKey }}
           {{- end }}
           ports:
             - containerPort: 6379

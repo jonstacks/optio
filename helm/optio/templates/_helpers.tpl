@@ -12,15 +12,15 @@ helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
 Database URL
 */}}
 {{- define "optio.databaseUrl" -}}
-{{- if .Values.postgresql.enabled -}}
+{{- if and .Values.postgresql.enabled (not .Values.postgresql.auth.existingSecret) -}}
 {{- $base := printf "postgres://%s:%s@%s-postgres:5432/%s" .Values.postgresql.auth.username .Values.postgresql.auth.password .Release.Name .Values.postgresql.auth.database -}}
 {{- if .Values.postgresql.tls.enabled -}}
 {{- printf "%s?sslmode=verify-full&sslrootcert=/etc/optio/pg-ca.crt" $base -}}
 {{- else -}}
 {{- $base -}}
 {{- end -}}
-{{- else -}}
-{{- required "externalDatabase.url is required when postgresql.enabled=false" .Values.externalDatabase.url -}}
+{{- else if and (not .Values.postgresql.enabled) (or .Values.externalDatabase.url (not .Values.existingSecret)) -}}
+{{- required "externalDatabase.url is required when postgresql.enabled=false (or supply DATABASE_URL via existingSecret)" .Values.externalDatabase.url -}}
 {{- end -}}
 {{- end }}
 
@@ -33,8 +33,8 @@ Auth: embeds password when redis.auth.enabled (password resolved at runtime via 
 {{- if .Values.redis.enabled -}}
   {{- $scheme := ternary "rediss" "redis" .Values.redis.tls.enabled -}}
   {{- $scheme -}}://{{ .Release.Name }}-redis:6379
-{{- else -}}
-{{- required "externalRedis.url is required when redis.enabled=false" .Values.externalRedis.url -}}
+{{- else if or .Values.externalRedis.url (not .Values.existingSecret) -}}
+{{- required "externalRedis.url is required when redis.enabled=false (or supply REDIS_URL via existingSecret)" .Values.externalRedis.url -}}
 {{- end -}}
 {{- end }}
 
@@ -60,10 +60,12 @@ Validate that encryption.key is not a known-weak placeholder value.
 Called from secrets.yaml to prevent deploying with insecure defaults.
 */}}
 {{- define "optio.validateEncryptionKey" -}}
+{{- if .Values.encryption.key -}}
 {{- $lower := .Values.encryption.key | lower -}}
 {{- $weak := list "change-me-in-production" "changeme" "test" "secret" "password" "default" -}}
 {{- if has $lower $weak -}}
   {{- fail (printf "encryption.key is set to a known-weak value (%q). Generate a strong key with: openssl rand -hex 32" .Values.encryption.key) -}}
+{{- end -}}
 {{- end -}}
 {{- end }}
 

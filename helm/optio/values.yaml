@@ -9,6 +9,11 @@
 # (replicas, autoscaling, ingress, external DB/Redis, etc.).
 #
 # Install a released chart: helm install optio oci://ghcr.io/jonwiggins/optio
+# Name of an existing Kubernetes Secret containing sensitive configuration settings.
+# When provided, sensitive environment variables like DATABASE_URL, OPTIO_ENCRYPTION_KEY,
+# and OAuth client secrets will be loaded from this secret instead of being generated
+# by the Helm chart. Useful with external-secrets-operator, sealed-secrets, etc.
+existingSecret: ""
 
 # ──────────────────────────────────────────────────────────────────────────────
 # API Server
@@ -37,6 +42,12 @@ api:
   # "hard" = requiredDuringSchedulingIgnoredDuringExecution
   # ""     = disabled
   antiAffinity: soft
+  # List of extra sources to populate environment variables in the API container (e.g. ConfigMaps, Secrets)
+  # envFrom:
+  #   - secretRef:
+  #       name: my-extra-secret
+  envFrom: []
+
   # Kubernetes nodeSelector for API pods (opt-in).
   nodeSelector: {}
   # Pod disruption budget. Enable when running multiple replicas to ensure
@@ -231,6 +242,10 @@ postgresql:
     username: optio
     # REQUIRED when auth is enabled. Override this in production.
     password: ""
+    # Name of an existing Kubernetes Secret containing the database password.
+    # If set, postgresql.auth.password is not required.
+    existingSecret: ""
+    existingSecretKey: "POSTGRES_PASSWORD"
   # TLS encryption for the in-cluster Postgres connection.
   # When enabled, a self-signed CA + server cert are generated at install time
   # and the DATABASE_URL is configured with sslmode=verify-full.
@@ -272,6 +287,10 @@ redis:
     # Leave empty to auto-generate a 32-char password at install time.
     # The password is stored in a K8s Secret and persisted across upgrades.
     password: ""
+    # Name of an existing Kubernetes Secret containing the Redis password.
+    # If set, redis.auth.password is not required.
+    existingSecret: ""
+    existingSecretKey: "REDIS_PASSWORD"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # External services (used when built-in PostgreSQL/Redis are disabled)

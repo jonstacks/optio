@@ -81,9 +81,16 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ .Release.Name }}-config
+            {{- if .Values.existingSecret }}
+            - secretRef:
+                name: {{ .Values.existingSecret }}
+            {{- end }}
             {{- if .Values.github.app.existingSecret }}
             - secretRef:
                 name: {{ .Values.github.app.existingSecret }}
+            {{- end }}
+            {{- with .Values.api.envFrom }}
+            {{- toYaml . | nindent 12 }}
             {{- end }}
           env:
             - name: API_PORT
@@ -102,8 +109,8 @@ spec:
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-redis-auth
-                  key: REDIS_PASSWORD
+                  name: {{ default (printf "%s-redis-auth" .Release.Name) .Values.redis.auth.existingSecret }}
+                  key: {{ default "REDIS_PASSWORD" .Values.redis.auth.existingSecretKey }}
             {{- end }}
             - name: OPTIO_STATEFULSET_ENABLED
               value: {{ .Values.agent.statefulSet.enabled | quote }}

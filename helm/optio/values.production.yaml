@@ -73,19 +73,20 @@ postgresql:
   enabled: false
 redis:
   enabled: false
-# Set via --set flags or a separate secrets file:
-# externalDatabase:
-#   url: "postgres://user:pass@host:5432/optio"
-# externalRedis:
-#   url: "redis://host:6379"
+
+# For production, it is highly recommended to manage sensitive credentials securely
+# using an existing secret in Kubernetes (e.g., synced via external-secrets from Vault/AWS Secrets Manager).
+# If using existingSecret, keys like DATABASE_URL, OPTIO_ENCRYPTION_KEY, and OAuth client secrets
+# do not need to be supplied in the Helm values files or --set flags.
+# existingSecret: "optio-production-secrets"
 
 # --- Authentication (required for production) ---
 auth:
   disabled: false
-  # Configure at least one provider via --set flags:
-  # auth.github.clientId / auth.github.clientSecret
-  # auth.google.clientId / auth.google.clientSecret
-  # auth.gitlab.clientId / auth.gitlab.clientSecret
+  # Configure at least one provider below:
+  # github:
+  #   clientId: "your-github-client-id"
+  #   # clientSecret is loaded from existingSecret (key: GITHUB_OAUTH_CLIENT_SECRET)
 
 # --- Ingress with TLS ---
 ingress:

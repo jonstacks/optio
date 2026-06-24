@@ -53,7 +53,7 @@ data:
 ---
 
 {{/* ── Redis auth password Secret ────────────────────────────────────── */}}
-{{- if .Values.redis.auth.enabled }}
+{{- if and .Values.redis.auth.enabled (not .Values.redis.auth.existingSecret) }}
 {{- $existingAuth := lookup "v1" "Secret" .Values.namespace (printf "%s-redis-auth" .Release.Name) }}
 {{- if $existingAuth }}
 apiVersion: v1
