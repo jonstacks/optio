@@ -20,3 +20,6 @@ apps/api/.env
 # Generated OpenAPI artifacts (rebuild via `pnpm --filter @optio/api openapi:dump`)
 apps/api/openapi.generated.json
 apps/api/openapi.generated.d.ts
+
+# Local environment variables and overrides
+.envrc-local
