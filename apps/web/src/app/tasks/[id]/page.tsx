@@ -35,10 +35,20 @@ import {
   Plus,
   X,
   CheckCircle,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useOptioChatStore } from "@/hooks/use-optio-chat";
 import { AddDependencyDialog } from "@/components/add-dependency-dialog";
+
+const AGENT_RUNTIME_OPTIONS = [
+  { value: "claude-code", label: "Claude Code" },
+  { value: "codex", label: "OpenAI Codex" },
+  { value: "copilot", label: "GitHub Copilot" },
+  { value: "opencode", label: "OpenCode" },
+  { value: "gemini", label: "Google Gemini" },
+  { value: "openclaw", label: "OpenClaw" },
+];
 
 export default function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -67,6 +77,10 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
     };
   }, [error, id, router]);
   const [actionLoading, setActionLoading] = useState(false);
+  const [selectedAgentType, setSelectedAgentType] = useState("");
+  useEffect(() => {
+    if (task?.agentType) setSelectedAgentType(task.agentType);
+  }, [task?.agentType]);
   const [resumePrompt, setResumePrompt] = useState("");
   const [showTimeline, setShowTimeline] = useState(true);
   const [sidebarTab, setSidebarTab] = useState<"pipeline" | "activity">("pipeline");
@@ -118,9 +132,30 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
     setActionLoading(false);
   };
 
+  const handleDelete = async () => {
+    if (
+      !confirm(
+        "Are you sure you want to delete this task? Associated logs and comments will be permanently removed.",
+      )
+    )
+      return;
+    setActionLoading(true);
+    try {
+      await api.deleteTask(id);
+      toast.success("Task deleted");
+      router.push(task?.ticketSource ? "/issues" : "/tasks");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete task");
+      setActionLoading(false);
+    }
+  };
+
   const handleRetry = async () => {
     setActionLoading(true);
     try {
+      if (selectedAgentType && task && selectedAgentType !== task.agentType) {
+        await api.updateTask(id, { agentType: selectedAgentType });
+      }
       await api.retryTask(id);
       await refresh();
     } catch {}
@@ -330,14 +365,38 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
               </button>
             )}
             {canRetry && (
-              <button
-                onClick={handleRetry}
-                disabled={actionLoading}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-xs hover:bg-primary/20 transition-colors disabled:opacity-50"
-              >
-                <RotateCcw className="w-3 h-3" />
-                Retry
-              </button>
+              <>
+                <select
+                  value={selectedAgentType}
+                  onChange={async (e) => {
+                    const next = e.target.value;
+                    setSelectedAgentType(next);
+                    try {
+                      await api.updateTask(id, { agentType: next });
+                      toast.success(`Runtime switched to ${next}`);
+                    } catch {
+                      toast.error("Failed to switch runtime");
+                    }
+                  }}
+                  disabled={actionLoading}
+                  className="px-2 py-1.5 rounded-md bg-bg border border-border text-xs text-text focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
+                  title="Switch agent runtime before retry"
+                >
+                  {AGENT_RUNTIME_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleRetry}
+                  disabled={actionLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-xs hover:bg-primary/20 transition-colors disabled:opacity-50"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Retry
+                </button>
+              </>
             )}
             {canForceRestart && (
               <button
@@ -371,6 +430,15 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
             >
               <Bot className="w-3 h-3" />
               Ask Optio
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={actionLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-error/10 text-error text-xs hover:bg-error/20 transition-colors disabled:opacity-50"
+              title="Delete task and return issue to unclaimed status"
+            >
+              <Trash2 className="w-3 h-3" />
+              Delete Task
             </button>
           </>
         }
@@ -531,14 +599,38 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                     </div>
                     <div className="flex items-center gap-2">
                       {classified.retryable && canRetry && (
-                        <button
-                          onClick={handleRetry}
-                          disabled={actionLoading}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-xs hover:bg-primary-hover disabled:opacity-50 btn-press transition-all"
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                          Retry Task
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={selectedAgentType}
+                            onChange={async (e) => {
+                              const next = e.target.value;
+                              setSelectedAgentType(next);
+                              try {
+                                await api.updateTask(id, { agentType: next });
+                                toast.success(`Runtime switched to ${next}`);
+                              } catch {
+                                toast.error("Failed to switch runtime");
+                              }
+                            }}
+                            disabled={actionLoading}
+                            className="px-2 py-1.5 rounded-md bg-bg border border-border text-xs text-text focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
+                            title="Switch agent runtime before retry"
+                          >
+                            {AGENT_RUNTIME_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={handleRetry}
+                            disabled={actionLoading}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-xs hover:bg-primary-hover disabled:opacity-50 btn-press transition-all"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            Retry Task
+                          </button>
+                        </div>
                       )}
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-error/10 text-error">
                         {classified.category}

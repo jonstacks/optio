@@ -29,7 +29,9 @@ export type WsEvent =
   | PersistentAgentTurnStartedEvent
   | PersistentAgentTurnHaltedEvent
   | PersistentAgentMessageEvent
-  | PersistentAgentLogEvent;
+  | PersistentAgentLogEvent
+  | TaskUpdatedEvent
+  | TaskDeletedEvent;
 
 export interface TaskStateChangedEvent {
   type: "task:state_changed";
@@ -58,6 +60,19 @@ export interface TaskCreatedEvent {
   type: "task:created";
   taskId: string;
   title: string;
+  timestamp: string;
+}
+
+export interface TaskUpdatedEvent {
+  type: "task:updated";
+  taskId: string;
+  state: string;
+  timestamp: string;
+}
+
+export interface TaskDeletedEvent {
+  type: "task:deleted";
+  taskId: string;
   timestamp: string;
 }
 

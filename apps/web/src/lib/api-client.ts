@@ -113,6 +113,14 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  updateTask: (id: string, updates: { agentType?: string; title?: string; prompt?: string }) =>
+    request<{ task: any }>(`/api/tasks/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    }),
+
+  deleteTask: (id: string) => request<{ ok: boolean }>(`/api/tasks/${id}`, { method: "DELETE" }),
+
   cancelTask: (id: string) => request<{ task: any }>(`/api/tasks/${id}/cancel`, { method: "POST" }),
 
   retryTask: (id: string) => request<{ task: any }>(`/api/tasks/${id}/retry`, { method: "POST" }),

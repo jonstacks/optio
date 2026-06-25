@@ -74,6 +74,29 @@ describe("api-client", () => {
     });
   });
 
+  describe("updateTask", () => {
+    it("sends PATCH with JSON body", async () => {
+      mockResponse({ task: { id: "abc", agentType: "gemini" } });
+      await api.updateTask("abc", { agentType: "gemini" });
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/tasks/abc");
+      expect(opts.method).toBe("PATCH");
+      expect(opts.headers["Content-Type"]).toBe("application/json");
+      expect(JSON.parse(opts.body)).toEqual({ agentType: "gemini" });
+    });
+  });
+
+  describe("deleteTask", () => {
+    it("sends DELETE to task endpoint", async () => {
+      mockResponse({ ok: true });
+      await api.deleteTask("abc");
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tasks/abc",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+  });
+
   describe("cancelTask", () => {
     it("sends POST to cancel endpoint", async () => {
       mockResponse({ task: { id: "abc", state: "cancelled" } });

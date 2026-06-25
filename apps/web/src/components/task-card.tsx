@@ -16,9 +16,19 @@ import {
   Moon,
   Play,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOptioChatStore } from "@/hooks/use-optio-chat";
+
+const AGENT_RUNTIME_OPTIONS = [
+  { value: "claude-code", label: "Claude Code" },
+  { value: "codex", label: "OpenAI Codex" },
+  { value: "copilot", label: "GitHub Copilot" },
+  { value: "opencode", label: "OpenCode" },
+  { value: "gemini", label: "Google Gemini" },
+  { value: "openclaw", label: "OpenClaw" },
+];
 
 /** Map raw trigger/message strings to human-readable attention reasons. */
 function formatAttentionReason(reason: string): string {
@@ -53,11 +63,18 @@ interface TaskSummary {
 interface TaskCardProps {
   task: TaskSummary;
   subtasks?: TaskSummary[];
+  onDelete?: (id: string) => void;
 }
 
-export const TaskCard = React.memo(function TaskCard({ task, subtasks }: TaskCardProps) {
+export const TaskCard = React.memo(function TaskCard({ task, subtasks, onDelete }: TaskCardProps) {
   const router = useRouter();
   const optioChat = useOptioChatStore();
+  const [selectedAgent, setSelectedAgent] = React.useState(task.agentType);
+
+  React.useEffect(() => {
+    setSelectedAgent(task.agentType);
+  }, [task.agentType]);
+
   const repoName = task.repoUrl.replace(/.*\/\/[^/]+\//, "").replace(/\.git$/, "");
   const [owner, repo] = repoName.includes("/") ? repoName.split("/") : ["", repoName];
   const prNumber = task.prUrl?.match(/\/pull\/(\d+)/)?.[1];
@@ -97,6 +114,21 @@ export const TaskCard = React.memo(function TaskCard({ task, subtasks }: TaskCar
               </span>
             )}
             <StateBadge state={task.state} isStalled={task.isStalled} />
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (!confirm("Are you sure you want to delete this task?")) return;
+                try {
+                  await api.deleteTask(task.id);
+                  if (onDelete) onDelete(task.id);
+                  else window.location.href = window.location.href;
+                } catch {}
+              }}
+              className="p-1 rounded text-text-muted/40 hover:text-error hover:bg-error/10 transition-colors btn-press"
+              title="Delete task"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
@@ -160,17 +192,37 @@ export const TaskCard = React.memo(function TaskCard({ task, subtasks }: TaskCar
         )}
 
         {/* Error / attention reason section */}
-        {task.state === "failed" && task.errorMessage && (
+        {task.state === "failed" && (
           <div className="mt-3 px-3 py-2.5 rounded-lg bg-error/5 border border-error/10 flex items-center justify-between gap-2">
             <span className="text-xs text-error/80 truncate">
-              {classifyError(task.errorMessage).title}
+              {task.errorMessage ? classifyError(task.errorMessage).title : "Task failed"}
             </span>
             <div className="flex items-center gap-1.5 shrink-0">
+              <select
+                value={selectedAgent}
+                onChange={async (e) => {
+                  e.stopPropagation();
+                  const val = e.target.value;
+                  setSelectedAgent(val);
+                  try {
+                    await api.updateTask(task.id, { agentType: val });
+                  } catch {}
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="px-1.5 py-1 rounded-md text-xs bg-bg border border-border text-text focus:outline-none focus:border-primary transition-colors shrink-0"
+                title="Agent runtime override"
+              >
+                {AGENT_RUNTIME_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   optioChat.setPrefillInput(
-                    `Task #${task.id.slice(0, 8)} failed with: ${classifyError(task.errorMessage!).title}`,
+                    `Task #${task.id.slice(0, 8)} failed with: ${task.errorMessage ? classifyError(task.errorMessage).title : "unknown error"}`,
                   );
                   optioChat.open();
                 }}
@@ -186,6 +238,9 @@ export const TaskCard = React.memo(function TaskCard({ task, subtasks }: TaskCar
                   btn.textContent = "Retrying...";
                   btn.setAttribute("disabled", "true");
                   try {
+                    if (selectedAgent && selectedAgent !== task.agentType) {
+                      await api.updateTask(task.id, { agentType: selectedAgent });
+                    }
                     await api.retryTask(task.id);
                     window.location.href = window.location.href;
                   } catch {

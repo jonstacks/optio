@@ -1,6 +1,15 @@
 import { eq, desc, and, or, ilike, gte, lte, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { tasks, taskEvents, taskLogs, users, repos } from "../db/schema.js";
+import {
+  tasks,
+  taskEvents,
+  taskLogs,
+  taskComments,
+  taskMessages,
+  taskDependencies,
+  users,
+  repos,
+} from "../db/schema.js";
 import {
   TaskState,
   transition,
@@ -66,6 +75,64 @@ export async function createTask(input: CreateTaskInput & { workspaceId?: string
 export async function getTask(id: string) {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
   return task ?? null;
+}
+
+export async function updateTask(
+  id: string,
+  updates: { agentType?: string; title?: string; prompt?: string },
+) {
+  const [updated] = await db
+    .update(tasks)
+    .set({
+      ...(updates.agentType && { agentType: updates.agentType }),
+      ...(updates.title && { title: updates.title }),
+      ...(updates.prompt && { prompt: updates.prompt }),
+      updatedAt: new Date(),
+    })
+    .where(eq(tasks.id, id))
+    .returning();
+
+  if (updated) {
+    await publishEvent({
+      type: "task:updated",
+      taskId: updated.id,
+      state: updated.state,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  return updated ?? null;
+}
+
+export async function deleteTask(id: string): Promise<boolean> {
+  const existing = await getTask(id);
+  if (!existing) return false;
+
+  const { taskQueue } = await import("../workers/task-worker.js");
+  const existingJobs = await taskQueue.getJobs(["waiting", "delayed", "prioritized"]);
+  for (const job of existingJobs) {
+    if (job.data?.taskId === id) {
+      await job.remove().catch(() => {});
+    }
+  }
+
+  await db.delete(taskEvents).where(eq(taskEvents.taskId, id));
+  await db.delete(taskComments).where(eq(taskComments.taskId, id));
+  await db.delete(taskMessages).where(eq(taskMessages.taskId, id));
+  await db
+    .delete(taskDependencies)
+    .where(or(eq(taskDependencies.taskId, id), eq(taskDependencies.dependsOnTaskId, id)));
+  await db.delete(taskLogs).where(eq(taskLogs.taskId, id));
+  await db.update(tasks).set({ parentTaskId: null }).where(eq(tasks.parentTaskId, id));
+  await db.delete(tasks).where(eq(tasks.id, id));
+
+  await publishEvent({
+    type: "task:deleted",
+    taskId: id,
+    timestamp: new Date().toISOString(),
+  });
+
+  return true;
 }
 
 /**

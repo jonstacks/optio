@@ -22,6 +22,8 @@ vi.mock("@/lib/api-client", () => ({
   api: {
     retryTask: vi.fn(),
     runNowTask: vi.fn(),
+    updateTask: vi.fn(),
+    deleteTask: vi.fn(),
   },
 }));
 

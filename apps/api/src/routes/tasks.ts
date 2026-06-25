@@ -119,6 +119,14 @@ const createTaskSchema = z
   })
   .describe("Body for creating a task (polymorphic via `type`)");
 
+const patchTaskSchema = z
+  .object({
+    agentType: AgentTypeSchema.optional().describe("Agent runtime override"),
+    title: z.string().min(1).optional(),
+    prompt: z.string().min(1).optional(),
+  })
+  .describe("Body for updating a task");
+
 // ─── Response envelopes ───
 
 const TaskListResponseSchema = z
@@ -574,6 +582,87 @@ export async function taskRoutes(rawApp: FastifyInstance) {
       }
 
       reply.status(201).send({ task: { type: "repo-task", ...task } });
+    },
+  );
+
+  // Update task
+  app.patch(
+    "/api/tasks/:id",
+    {
+      preHandler: [requireRole("member")],
+      schema: {
+        operationId: "updateTask",
+        summary: "Update a task",
+        description:
+          "Update task properties such as `agentType`, `title`, or `prompt`. " +
+          "Requires `member` role.",
+        tags: ["Tasks"],
+        params: IdParamsSchema,
+        body: patchTaskSchema,
+        response: {
+          200: TaskResponseSchema,
+          404: ErrorResponseSchema,
+        },
+      },
+    },
+    async (req, reply) => {
+      const { id } = req.params;
+      const existing = await taskService.getTask(id);
+      if (!existing) return reply.status(404).send({ error: "Task not found" });
+      const wsId = req.user?.workspaceId;
+      if (wsId && existing.workspaceId !== wsId) {
+        return reply.status(404).send({ error: "Task not found" });
+      }
+
+      const task = await taskService.updateTask(id, req.body);
+      logAction({
+        userId: req.user?.id,
+        action: "task.update",
+        params: { taskId: id, updates: req.body },
+        result: { id },
+        success: true,
+      }).catch(() => {});
+      reply.send({ task: { type: "repo-task", ...task } });
+    },
+  );
+
+  // Delete task
+  app.delete(
+    "/api/tasks/:id",
+    {
+      preHandler: [requireRole("member")],
+      schema: {
+        operationId: "deleteTask",
+        summary: "Delete a task",
+        description:
+          "Delete a task and its associated logs, comments, and events. " +
+          "Requires `member` role.",
+        tags: ["Tasks"],
+        params: IdParamsSchema,
+        response: {
+          200: z.object({ ok: z.boolean() }),
+          404: ErrorResponseSchema,
+        },
+      },
+    },
+    async (req, reply) => {
+      const { id } = req.params;
+      const existing = await taskService.getTask(id);
+      if (!existing) return reply.status(404).send({ error: "Task not found" });
+      const wsId = req.user?.workspaceId;
+      if (wsId && existing.workspaceId !== wsId) {
+        return reply.status(404).send({ error: "Task not found" });
+      }
+
+      await taskService.deleteTask(id);
+      logAction({
+        userId: req.user?.id,
+        action: "task.delete",
+        params: { taskId: id },
+        result: { id },
+        success: true,
+      }).catch(() => {});
+      reply.send({ ok: true });
     },
   );
 
